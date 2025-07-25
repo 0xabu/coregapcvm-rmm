@@ -4,11 +4,13 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <cpuid.h>
 #include <arch.h>
 #include <arch_features.h>
 #include <arch_helpers.h>
 #include <debug.h>
 #include <esr.h>
+#include <gic.h>
 #include <memory_alloc.h>
 #include <rec.h>
 #include <smc-rmi.h>
@@ -209,6 +211,8 @@ static bool handle_id_sysreg_trap(struct rec *rec,
 	return true;
 }
 
+unsigned long ipi_count[MAX_CPUS];
+
 static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 				       struct rmi_rec_exit *rec_exit,
 				       unsigned long esr)
@@ -223,6 +227,49 @@ static bool handle_icc_el1_sysreg_trap(struct rec *rec,
 	assert((sysreg == ESR_EL2_SYSREG_ICC_DIR) ||
 	       (sysreg == ESR_EL2_SYSREG_ICC_SGI1R_EL1) ||
 	       (sysreg == ESR_EL2_SYSREG_ICC_SGI0R_EL1));
+
+#ifdef INTERRUPT_DELEGATION
+	if (sysreg == ESR_EL2_SYSREG_ICC_SGI1R_EL1) {
+		unsigned int reg = ESR_EL2_SYSREG_ISS_RT(esr);
+		unsigned long sgi = rec->regs[reg];
+		unsigned long virt_aff = 0;
+		unsigned long range = (sgi >> 44) & 0xf;
+		unsigned long target_list = sgi & 0xffff;
+		unsigned long int_id = (sgi >> 24) & 0xf;
+		unsigned long int_routing_mode = (sgi >> 40) & 0b1;
+		bool success = true; // Did emulation succed or do we need to go to KVM?
+
+		virt_aff |= (sgi >> 8)  & 0x0000ff00;
+		virt_aff |= (sgi >> 16) & 0x00ff0000;
+		virt_aff |= (sgi >> 24) & 0xff000000;
+
+		if (int_routing_mode == 1) {
+			// Send to all
+			int ret = send_virt_ipi_to_all(rec->realm_info.g_rd, int_id, my_cpuid());
+
+			if (ret != 0) {
+				success = false;
+			}
+		} else {
+			// Send to selected
+			for (int i = 0; i < 16; i++) {
+				if ((target_list & 0b1) == 1) {
+					int ret = send_virt_ipi(rec->realm_info.g_rd, virt_aff | (16 * range + i), int_id);
+
+					if (ret != 0) {
+						success = false;
+						break;
+					}
+				}
+				target_list = target_list >> 1;
+			}
+		}
+
+		if (success == true) {
+			return true; // Do not exit on IPI request
+		}
+	}
+#endif
 
 	/*
 	 * The registers above should only trap to EL2 for writes, read

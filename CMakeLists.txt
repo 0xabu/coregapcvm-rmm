@@ -40,6 +40,21 @@ arm_config_option(
         HELP "Target Architecture for RMM build."
         STRINGS "aarch64" "fake_host")
 
+arm_config_option(
+	NAME INTERRUPT_DELEGATION
+		TYPE BOOL
+		DEFAULT OFF)
+
+arm_config_option(
+		NAME NORMAL_WORLD_RMM
+		HELP "Configure the RMM to execute in normal world."
+		TYPE BOOL
+		DEFAULT OFF)
+
+if (NORMAL_WORLD_RMM)
+	add_definitions("-DNORMAL_WORLD_RMM")
+endif()
+
 include("cmake/Toolchains.cmake")
 include("cmake/BuildType.cmake")
 

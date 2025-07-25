@@ -263,14 +263,22 @@ int rmm_el3_ifc_get_platform_token(uintptr_t buf, size_t buflen,
 
 static inline unsigned long rmm_el3_ifc_gtsi_delegate(unsigned long addr)
 {
+#ifdef  NORMAL_WORLD_RMM
+	return SMC_SUCCESS;
+#else
 	return monitor_call(SMC_RMM_GTSI_DELEGATE, addr,
 				0UL, 0UL, 0UL, 0UL, 0UL);
+#endif
 }
 
 static inline unsigned long rmm_el3_ifc_gtsi_undelegate(unsigned long addr)
 {
+#ifdef  NORMAL_WORLD_RMM
+	return SMC_SUCCESS;
+#else
 	return monitor_call(SMC_RMM_GTSI_UNDELEGATE, addr,
 				0UL, 0UL, 0UL, 0UL, 0UL);
+#endif
 }
 
 /*

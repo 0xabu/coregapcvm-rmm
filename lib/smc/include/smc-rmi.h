@@ -317,6 +317,9 @@
  */
 #define SMC_RMM_RTT_SET_RIPAS			SMC64_RMI_FID(U(0x19))
 
+/* no parameters */
+#define SMC_RMM_CORE_DEDICATE			SMC64_RMI_FID(U(0x20))
+
 /* Size of Realm Personalization Value */
 #define RPV_SIZE		64
 
@@ -455,6 +458,31 @@ struct rmi_rec_run {
 	SET_MEMBER_RMI(struct rmi_rec_entry entry, 0, 0x800);	/* Offset 0 */
 	/* Exit information */
 	SET_MEMBER_RMI(struct rmi_rec_exit exit, 0x800, 0x1000);/* 0x800 */
+};
+
+struct rmi_channel {
+	unsigned long command;
+	unsigned long x0;
+	unsigned long x1;
+	unsigned long x2;
+	unsigned long x3;
+	unsigned long x4;
+	unsigned long x5;
+	unsigned long x6;
+	unsigned long ipi;
+	unsigned long affinity;
+	unsigned long rmm_affinity;
+};
+
+enum rmi_channel_cmd {
+	CMD_NOOP = 0x0,
+	CMD_PENDING = 0x1,   /* Channel is locked by a KVM thread */
+	CMD_DONE = 0x2,      /* Signal that the RMM is done with processing a call*/
+	CMD_DONE_IPI = 0x4,  /* Signal that the RMM is done with processing a call, and that an IPI was or will be sent */
+	CMD_SCHEDULED = 0x8, /* A KVM thread has been scheduled to handle the call result */
+	CMD_PING = 0x10,     /* used for benchmarking */
+	CMD_CALL = 0x20,     /* an actual scm call */
+	CMD_HELLO = 0x40,    /* used for debugging */
 };
 
 #endif /* __ASSEMBLER__ */

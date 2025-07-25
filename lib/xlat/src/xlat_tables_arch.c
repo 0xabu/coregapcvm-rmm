@@ -217,7 +217,11 @@ uint64_t xlat_arch_get_pas(uint64_t attr)
 
 	switch (pas) {
 	case MT_REALM:
+#ifdef NORMAL_WORLD_RMM
+		return LOWER_ATTRS(NS);
+#else
 		return 0U;
+#endif
 	case MT_NS:
 		return LOWER_ATTRS(NS);
 	default:

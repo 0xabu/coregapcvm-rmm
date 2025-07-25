@@ -71,6 +71,8 @@ void rmm_main(void)
 #endif
 		);
 
+    NOTICE("This is a fork with custom modifications\n");
+
 	/* Report Boot Interface version */
 	NOTICE("RMM-EL3 Interface v.%u.%u\n",
 		RMM_EL3_IFC_GET_VERS_MAJOR(rmm_el3_ifc_version),
@@ -86,6 +88,7 @@ void rmm_main(void)
 		RMI_ABI_VERSION_MAJOR, RMI_ABI_VERSION_MINOR,
 		RSI_ABI_VERSION_MAJOR, RSI_ABI_VERSION_MINOR,
 		__DATE__, __TIME__);
+	NOTICE("[RMM] Rev 0.1\n");
 
 	rmm_warmboot_main();
 

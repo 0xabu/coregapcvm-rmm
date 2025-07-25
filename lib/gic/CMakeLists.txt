@@ -9,7 +9,8 @@ target_link_libraries(rmm-lib-gic
     PRIVATE rmm-lib-arch
             rmm-lib-common
             rmm-lib-debug
-            rmm-lib-smc)
+            rmm-lib-smc
+			rmm-lib-timers)
 
 target_include_directories(rmm-lib-gic
     PUBLIC "include")

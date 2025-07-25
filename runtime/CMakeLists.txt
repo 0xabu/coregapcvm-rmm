@@ -56,7 +56,8 @@ target_sources(rmm-runtime
             "core/inject_exp.c"
             "core/run.c"
             "core/sysregs.c"
-            "core/vmid.c")
+            "core/vmid.c"
+			"core/perf.c")
 
 target_sources(rmm-runtime
     PRIVATE "rmi/feature.c"
@@ -86,6 +87,28 @@ arm_config_option(
 
 if(RMM_MAX_SIZE EQUAL 0x0)
     message(FATAL_ERROR "RMM_MAX_SIZE is not initialized")
+endif()
+
+arm_config_option(
+	NAME GICD_BASE_ADDR
+	HELP "The base address for the GICD"
+    TYPE STRING
+    DEFAULT 0x0
+    ADVANCED)
+
+if(GICD_BASE_ADDR EQUAL 0x0)
+	message(FATAL_ERROR "GICD_BASE_ADDR is not initialized")
+endif()
+
+arm_config_option(
+	NAME GICR_BASE_ADDR
+	HELP "The base address for the GICR"
+    TYPE STRING
+    DEFAULT 0x0
+    ADVANCED)
+
+if(GICR_BASE_ADDR EQUAL 0x0)
+	message(FATAL_ERROR "GICR_BASE_ADDR is not initialized")
 endif()
 
 if(NOT RMM_ARCH STREQUAL fake_host)

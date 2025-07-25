@@ -212,6 +212,43 @@
 /* Constant to categorize LPI interrupt */
 #define MIN_LPI_ID		U(8192)
 
+#define RMM_IPI_ID			(UL(10))
+#define RMM_KICK_ID			(UL(11))
+#define INT_ID_MASK			(UL(0xffffffff))
+#define TIMER_INT_ID		(UL(0x1b)  <<  0)
+#define P_INT_ID			(UL(0x200) << 32)
+#define VTIMER_PRIORITY		(UL(0xa0)  << 48)
+#define VTIMER_GROUP		(UL(0x1)   << 60)
+#define VTIMER_STATE		(UL(0x01)  << 62)
+#define VTIMER_IRQ			(VTIMER_STATE | VTIMER_GROUP | VTIMER_PRIORITY | TIMER_INT_ID)
+#define VIPI_IRQ			(VTIMER_STATE | VTIMER_GROUP | VTIMER_PRIORITY)
+#define VBLK_IRQ			(VTIMER_STATE | VTIMER_GROUP | VTIMER_PRIORITY | 0x26)
+
+#define NR_IRQ_SLOT			(ICH_MAX_LRS + 1)
+
+enum irq_state {
+	IRQ_FREE,
+	IRQ_PENDING,
+	IRQ_PENDING_AND_ACTIVE,
+	IRQ_INJECTED,
+};
+
+enum irq_origin_enum {
+	IRQ_ORIGIN_INVALID,
+	IRQ_ORIGIN_KVM,
+	IRQ_ORIGIN_RMM,
+};
+
+struct irq_slot {
+	unsigned long irq;
+	enum irq_state state;
+};
+
+struct irq_origin {
+	int slot;
+	enum irq_origin_enum origin;
+};
+
 struct gic_cpu_state {
 	/* Interrupt Controller Hyp Active Priorities Group 0 Registers */
 	unsigned long ich_ap0r_el2[ICH_MAX_APRS];
@@ -226,8 +263,14 @@ struct gic_cpu_state {
 	unsigned long ich_lr_el2[ICH_MAX_LRS];	/* RecRun in/out */
 	/* GICv3 Maintenance Interrupt State Register */
 	unsigned long ich_misr_el2;		/* RecRun out */
+	/* IRQs injected by the RMM */
+	struct irq_slot rmm_irq[NR_IRQ_SLOT];
+	struct irq_slot kvm_irq[NR_IRQ_SLOT];
+	struct irq_origin irq_origin[NR_IRQ_SLOT];
+	bool need_update;
 };
 
+struct granule;
 struct rmi_rec_entry;
 struct rmi_rec_exit;
 
@@ -240,5 +283,20 @@ void gic_copy_state_to_ns(struct gic_cpu_state *gicstate,
 bool gic_validate_state(struct gic_cpu_state *gicstate);
 void gic_restore_state(struct gic_cpu_state *gicstate);
 void gic_save_state(struct gic_cpu_state *gicstate);
+int push_irq(unsigned long int_id);
+void print_pending_irqs(void);
+bool handle_irqs(struct gic_cpu_state *gic);
+void send_phys_ipi(unsigned long phys_aff, unsigned irq_id);
+int send_virt_ipi(struct granule *g_rd, unsigned long virt_eff, unsigned irq_id);
+int send_virt_ipi_to_all(struct granule *g_rd, unsigned irq_id, unsigned sender);
+void clear_affinity(struct granule *g_rd);
+void register_affinity(struct granule *g_rd, unsigned long virt_aff);
+void insert_pending_ipi(struct gic_cpu_state *gic);
+void push_rmm_irq(struct gic_cpu_state *gic, unsigned long irq);
+void gic_clear_state(struct gic_cpu_state *gicstate);
+void update_irq(struct gic_cpu_state *gic);
+void debug_irq(struct gic_cpu_state *gic, char *banner);
+void gic_enter(unsigned cpuid);
+void gic_exit(unsigned cpuid);
 
 #endif /* GIC_H */

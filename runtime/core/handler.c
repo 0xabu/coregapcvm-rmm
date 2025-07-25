@@ -134,7 +134,8 @@ static const struct smc_handler smc_handlers[] = {
 	HANDLER(PSCI_COMPLETE,		2, 0, smc_psci_complete,	 true,  true),
 	HANDLER(REC_AUX_COUNT,		1, 1, smc_rec_aux_count,	 true,  true),
 	HANDLER(RTT_INIT_RIPAS,		3, 0, smc_rtt_init_ripas,	 false, true),
-	HANDLER(RTT_SET_RIPAS,		5, 0, smc_rtt_set_ripas,	 false, true)
+	HANDLER(RTT_SET_RIPAS,		5, 0, smc_rtt_set_ripas,	 false, true),
+	HANDLER(CORE_DEDICATE,		1, 0, smc_core_dedicate,	true, true)
 };
 
 COMPILER_ASSERT(ARRAY_LEN(smc_handlers) == SMC64_NUM_FIDS_IN_RANGE(RMI));
@@ -381,4 +382,54 @@ unsigned long handle_rmm_trap(void)
 
 	fatal_abort();
 	return 0UL;
+}
+
+unsigned long handle_rmm_irq(void)
+{
+	uint64_t int_id;
+	uint64_t spsr_el2;
+
+	asm volatile("mrs %0, spsr_el2" : "=r"(spsr_el2));
+	switch (spsr_el2 & 0b1111) {
+		case 0b0000:
+			NOTICE("## Trapped from EL0\n");
+			break;
+		case 0b0100:
+			NOTICE("## Trapped from EL1t\n");
+			break;
+		case 0b0101:
+			NOTICE("## Trapped from EL1h\n");
+			break;
+		case 0b1000:
+			NOTICE("## Trapped from EL2t\n");
+			break;
+		case 0b1001:
+			NOTICE("## Trapped from EL2h\n");
+			break;
+		default:
+			NOTICE("## Trapped from unknown EL: SPSR_EL2 = 0x%lx\n", spsr_el2);
+			break;
+	}
+	NOTICE("## Previous daif 0x%lx\n", (spsr_el2 & 0x3c0));
+
+	asm volatile("mrs %0, icc_iar1_el1" : "=r"(int_id));
+	if (int_id == 0x1a) {
+		uint64_t freq;
+
+		NOTICE("## Got timer IRQ 0x%lx\n", int_id);
+		// Get the frequency
+		asm volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+		// Reset the timer
+		asm volatile("msr cnthp_tval_el2, %0" :: "r"(freq));
+		// Deactivate Interrupt
+		asm volatile("msr icc_dir_el1, %0" :: "r"(int_id));
+	} else {
+		NOTICE("## Unknown IRQ: 0x%lx\n", int_id);
+		fatal_abort();
+	}
+
+	// EOI
+	asm volatile("msr icc_eoir1_el1, %0" :: "r"(int_id));
+
+	return 0;
 }

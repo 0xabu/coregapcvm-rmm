@@ -8,7 +8,18 @@
 
 #include <smc.h>
 
+void handle_ns_smc(unsigned long function_id,
+		   unsigned long arg0,
+		   unsigned long arg1,
+		   unsigned long arg2,
+		   unsigned long arg3,
+		   unsigned long arg4,
+		   unsigned long arg5,
+		   struct smc_result *ret);
+
 unsigned long smc_version(void);
+
+unsigned long smc_core_dedicate(unsigned long channel_addr);
 
 void smc_read_feature_register(unsigned long index,
 				struct smc_result *ret_struct);

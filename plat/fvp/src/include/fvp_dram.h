@@ -11,7 +11,7 @@
 #include <rmm_el3_ifc.h>
 
 /* Maximum number of DRAM banks supported */
-#define MAX_DRAM_NUM_BANKS	2UL
+#define MAX_DRAM_NUM_BANKS	10UL
 
 /* FVP runtime structures */
 struct fvp_dram_bank {
@@ -20,7 +20,8 @@ struct fvp_dram_bank {
 };
 
 struct fvp_dram_layout {
-	unsigned long idx_bank_1;	/* start granule index in bank 1 */
+	unsigned long num_banks; /* Number of banks */
+	unsigned long idx_bank[MAX_DRAM_NUM_BANKS];	/* start granule index in bank N */
 	unsigned long num_granules;	/* number of granules */
 	struct fvp_dram_bank fvp_bank[MAX_DRAM_NUM_BANKS];
 };

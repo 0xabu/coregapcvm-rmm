@@ -151,6 +151,8 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 				&static_regions[0], nregions + COMMON_REGIONS,
 				VIRT_ADDR_SPACE_SIZE);
 
+	INFO("[RMM] XLAT configuration initialized\n");
+
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",
 			__func__, __LINE__,
@@ -164,6 +166,8 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 			    &static_s1tt[0],
 			    PLAT_CMN_CTX_MAX_XLAT_TABLES);
 
+	INFO("[RMM] XLAT context initalized\n");
+
 	if (ret != 0) {
 		ERROR("%s (%u): %s (%i)\n",
 			__func__, __LINE__,
@@ -174,6 +178,8 @@ int plat_cmn_setup(unsigned long x0, unsigned long x1,
 
 	/* Read supported GIC virtualization features and init GIC variables */
 	gic_get_virt_features();
+
+	INFO("[RMM] Inspected available GIC features\n");
 
 	/* Perform coold boot initialization of the slot buffer mechanism */
 	return slot_buf_coldboot_init();

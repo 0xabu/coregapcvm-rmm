@@ -15,6 +15,7 @@ enum buffer_slot {
 	/*
 	 * NS.
 	 */
+	SLOT_NS_CHANNEL,	/* The channel with non-secure world */
 	SLOT_NS,
 
 	/*
@@ -90,6 +91,8 @@ void slot_buf_finish_warmboot_init(void);
  * Otherwise, it will return NULL.
  */
 void *buffer_map_internal(enum buffer_slot slot, unsigned long addr);
+
+void *buffer_map_device_internal(enum buffer_slot slot, unsigned long addr);
 
 /*
  * Unmaps the slot buffer corresponding to the VA passed via `buf` argument.

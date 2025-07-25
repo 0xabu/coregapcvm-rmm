@@ -4,6 +4,8 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <gic.h>
+#include <debug.h>
 #include <arch.h>
 #include <arch_features.h>
 #include <attestation.h>
@@ -11,14 +13,12 @@
 #include <cpuid.h>
 #include <exit.h>
 #include <pmu.h>
+#include <perf.h>
 #include <rec.h>
 #include <run.h>
 #include <simd.h>
 #include <smc-rmi.h>
 #include <timers.h>
-
-static struct ns_state g_ns_data[MAX_CPUS];
-static struct pmu_state g_pmu_data[MAX_CPUS];
 
 /*
  * Initialize the aux data and any buffer pointers to the aux granule memory for
@@ -102,7 +102,9 @@ static void save_sysreg_state(struct sysreg_state *sysregs)
 	MPAM(sysregs->mpam0_el1 = read_mpam0_el1();)
 
 	/* Timer registers */
+#ifndef NORMAL_WORLD_RMM
 	sysregs->cntpoff_el2 = read_cntpoff_el2();
+#endif
 	sysregs->cntvoff_el2 = read_cntvoff_el2();
 	sysregs->cntp_ctl_el0 = read_cntp_ctl_el02();
 	sysregs->cntp_cval_el0 = read_cntp_cval_el02();
@@ -135,7 +137,7 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_sp_el1(sysregs->sp_el1);
 	write_elr_el12(sysregs->elr_el1);
 	write_spsr_el12(sysregs->spsr_el1);
-	write_pmcr_el0(sysregs->pmcr_el0);
+	/* write_pmcr_el0(sysregs->pmcr_el0); */
 	write_tpidrro_el0(sysregs->tpidrro_el0);
 	write_tpidr_el0(sysregs->tpidr_el0);
 	write_csselr_el1(sysregs->csselr_el1);
@@ -164,7 +166,9 @@ static void restore_sysreg_state(struct sysreg_state *sysregs)
 	write_vmpidr_el2(sysregs->vmpidr_el2);
 
 	/* Timer registers */
+#ifndef NORMAL_WORLD_RMM
 	write_cntpoff_el2(sysregs->cntpoff_el2);
+#endif
 	write_cntvoff_el2(sysregs->cntvoff_el2);
 
 	/*
@@ -210,51 +214,9 @@ static void restore_realm_state(struct rec *rec)
 
 	if (rec->realm_info.pmu_enabled) {
 		/* Restore PMU context */
-		pmu_restore_state(rec->aux_data.pmu,
-				  rec->realm_info.pmu_num_cnts);
-	}
-}
-
-static void save_ns_state(struct rec *rec)
-{
-	struct ns_state *ns_state = rec->ns;
-
-	save_sysreg_state(&ns_state->sysregs);
-
-	/*
-	 * CNTHCTL_EL2 is saved/restored separately from the main system
-	 * registers, because the Realm configuration is written on every
-	 * entry to the Realm, see `check_pending_timers`.
-	 */
-	ns_state->sysregs.cnthctl_el2 = read_cnthctl_el2();
-
-	ns_state->icc_sre_el2 = read_icc_sre_el2();
-
-	if (rec->realm_info.pmu_enabled) {
-		/* Save PMU context */
-		pmu_save_state(ns_state->pmu, rec->realm_info.pmu_num_cnts);
-	}
-}
-
-static void restore_ns_state(struct rec *rec)
-{
-	struct ns_state *ns_state = rec->ns;
-
-	restore_sysreg_state(&ns_state->sysregs);
-
-	/*
-	 * CNTHCTL_EL2 is saved/restored separately from the main system
-	 * registers, because the Realm configuration is written on every
-	 * entry to the Realm, see `check_pending_timers`.
-	 */
-	write_cnthctl_el2(ns_state->sysregs.cnthctl_el2);
-
-	write_icc_sre_el2(ns_state->icc_sre_el2);
-
-	if (rec->realm_info.pmu_enabled) {
-		/* Restore PMU state */
-		pmu_restore_state(ns_state->pmu,
-				  rec->realm_info.pmu_num_cnts);
+		// NOTE: we manage the PMU in the RMM
+		/* pmu_restore_state(rec->aux_data.pmu, */
+		/* 		  rec->realm_info.pmu_num_cnts); */
 	}
 }
 
@@ -344,20 +306,11 @@ void rec_simd_enable_restore(struct rec *rec)
 
 void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 {
-	struct ns_state *ns_state;
 	int realm_exception_code;
 	void *rec_aux;
-	unsigned int cpuid = my_cpuid();
 
-	assert(cpuid < MAX_CPUS);
+	assert(my_cpuid()< MAX_CPUS);
 	assert(rec->ns == NULL);
-
-	ns_state = &g_ns_data[cpuid];
-
-	/* Ensure PMU context is cleared */
-	assert(ns_state->pmu == NULL);
-
-	rec->ns = ns_state;
 
 	/* Map auxiliary granules */
 	rec_aux = map_rec_aux(rec->g_aux, rec->num_rec_aux);
@@ -382,14 +335,15 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	}
 
 	rec_simd_state_init(rec);
-
-	ns_state->pmu = &g_pmu_data[cpuid];
-
-	save_ns_state(rec);
 	restore_realm_state(rec);
 
 	/* The REC must enter run loop with SIMD access disabled */
 	assert(rec_is_simd_allowed(rec) == false);
+
+	/* debug_irq(&rec->sysregs.gicstate, "[RMM] ======= Entry\n"); */
+
+	gic_enter(my_cpuid());
+	restore_timer(rec);
 
 	do {
 		/*
@@ -398,14 +352,42 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		 * mask on each entry to the realm and that we report any
 		 * change in output level to the NS caller.
 		 */
-		if (check_pending_timers(rec)) {
-			rec_exit->exit_reason = RMI_EXIT_IRQ;
-			break;
+		/* if (check_pending_timers(rec)) { */
+		/* 	perf_record_event(PERF_GUEST_TIMER); */
+		/* 	/1* NOTICE("[RMM] EXIT IRQ\n"); *1/ */
+		/* 	rec_exit->exit_reason = RMI_EXIT_IRQ; */
+		/* 	break; */
+		/* 	/1* if (push_irq()) { *1/ */
+		/* 	/1* 	// Failed to push timer IRQ, returning to KVM *1/ */
+		/* 	/1* 	break; *1/ */
+		/* 	/1* } *1/ */
+		/* 	/1* reset_timer(); *1/ */
+		/* } */
+		/* reset_timer(); */
+		check_pending_timers(rec);
+		insert_pending_ipi(&rec->sysregs.gicstate);
+		if (rec->sysregs.gicstate.need_update) {
+			update_irq(&rec->sysregs.gicstate);
+			rec->sysregs.gicstate.need_update = false;
 		}
+		perf_record_event(PERF_RMM_TICK);
+		perf_time_resume();
 
+		/* NOTICE("[RMM] Tick\n"); */
 		activate_events(rec);
 		realm_exception_code = run_realm(&rec->regs[0]);
 	} while (handle_realm_exit(rec, rec_exit, realm_exception_code));
+
+	gic_exit(my_cpuid());
+	save_timer(rec);
+	update_irq(&rec->sysregs.gicstate);
+
+	// Disable timers
+	/* uint64_t value = 0; // Disable */
+	/* asm volatile("msr cnthp_ctl_el2, %0" :: "r"(value)); */
+	/* NOTICE("[RMM] Exit to KVM\n"); */
+
+	/* debug_irq(&rec->sysregs.gicstate, "[RMM] ======= Exit\n"); */
 
 	/*
 	 * Check if FPU/SIMD was used, and if it was, save the realm state,
@@ -414,25 +396,63 @@ void rec_run_loop(struct rec *rec, struct rmi_rec_exit *rec_exit)
 	if (rec_is_simd_allowed(rec)) {
 		/* Save REC SIMD state to memory and disable SIMD for REC */
 		rec_simd_save_disable(rec);
-
-		/* Restore NS state based on system support for SVE or FPU */
-		simd_restore_ns_state();
 	}
 
 	report_timer_state_to_ns(rec_exit);
-
 	save_realm_state(rec, rec_exit);
-	restore_ns_state(rec);
 
-	/*
-	 * Clear PMU context while exiting
-	 */
-	ns_state->pmu = NULL;
+	perf_record_event(PERF_RMM_EXIT);
+	switch (rec_exit->exit_reason) {
+		case RMI_EXIT_SYNC:
+			perf_record_and_time_event(PERF_EXIT_SYNC);
+			break;
+		case RMI_EXIT_IRQ:
+			perf_record_and_time_event(PERF_EXIT_IRQ);
+			break;
+		case RMI_EXIT_FIQ:
+			perf_record_and_time_event(PERF_EXIT_FIQ);
+			break;
+		case RMI_EXIT_PSCI:
+			perf_record_and_time_event(PERF_EXIT_PSCI);
+			break;
+		case RMI_EXIT_RIPAS_CHANGE:
+			perf_record_and_time_event(PERF_EXIT_RIPAS_CHANGE);
+			break;
+		case RMI_EXIT_HOST_CALL:
+			perf_record_and_time_event(PERF_EXIT_HOST_CALL);
+			break;
+		case RMI_EXIT_SERROR:
+			perf_record_and_time_event(PERF_EXIT_SERROR);
+			break;
+	}
 
-	/*
-	 * Clear NS pointer since that struct is local to this function.
-	 */
-	rec->ns = NULL;
+	// DEBUG
+	if (false) {
+		NOTICE("## exit reason: ");
+		switch (rec_exit->exit_reason) {
+			case RMI_EXIT_SYNC:
+				NOTICE("EXIT_SYNC\n");
+				break;
+			case RMI_EXIT_IRQ:
+				NOTICE("EXIT_IRQ\n");
+				break;
+			case RMI_EXIT_FIQ:
+				NOTICE("EXIT_FIQ\n");
+				break;
+			case RMI_EXIT_PSCI:
+				NOTICE("EXIT_PSCI\n");
+				break;
+			case RMI_EXIT_RIPAS_CHANGE:
+				NOTICE("EXIT_RIPAS_CHANGE\n");
+				break;
+			case RMI_EXIT_HOST_CALL:
+				NOTICE("EXIT_HOST_CALL\n");
+				break;
+			case RMI_EXIT_SERROR:
+				NOTICE("EXIT_SERROR\n");
+				break;
+		}
+	}
 
 	/* Undo the heap association */
 	attestation_heap_ctx_unassign_pe();

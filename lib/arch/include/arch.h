@@ -622,11 +622,25 @@
 #define VTCR_PS_SHIFT		16
 #define VTCR_PS_WIDTH		3
 #define VTCR_PS_40		INPLACE(VTCR_PS, 2)
+#define VTCR_PS_48		INPLACE(VTCR_PS, 5)
 
 #define VTCR_VS			(UL(1) << 19)
 #define VTCR_NSA		(UL(1) << 30)
 #define VTCR_RES1		(UL(1) << 31)
 
+#ifdef NORMAL_WORLD_RMM
+#define VTCR_FLAGS ( \
+	VTCR_IRGN0_WBRAWA | /* PTW inner cache attr. is WB RAWA*/ \
+	VTCR_ORGN0_WBRAWA | /* PTW outer cache attr. is WB RAWA*/ \
+	VTCR_SH0_IS       | /* PTW shareability attr. is Outer Sharable*/\
+	VTCR_TG0_4K       | /* 4K granule size in non-secure PT*/ \
+	VTCR_PS_48        | /* size(PA) = 48 */   \
+	/* VS = 0              size(VMID) = 8 */ \
+	/* NSW = 0             non-secure s2 is made of secure pages*/ \
+	/* VTCR_NSA = 0   |    non-secure IPA maps to non-secure PA */ \
+	VTCR_RES1 \
+	)
+#else
 #define VTCR_FLAGS ( \
 	VTCR_IRGN0_WBRAWA | /* PTW inner cache attr. is WB RAWA*/ \
 	VTCR_ORGN0_WBRAWA | /* PTW outer cache attr. is WB RAWA*/ \
@@ -638,6 +652,7 @@
 	VTCR_NSA           | /* non-secure IPA maps to non-secure PA */ \
 	VTCR_RES1 \
 	)
+#endif
 
 
 /* SCTLR definitions */

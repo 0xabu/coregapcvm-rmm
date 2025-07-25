@@ -4,10 +4,12 @@
  */
 
 #include <assert.h>
+#include <debug.h>
 #include <buffer.h>
 #include <feature.h>
 #include <granule.h>
 #include <measurement.h>
+#include <perf.h>
 #include <realm.h>
 #include <simd.h>
 #include <smc-handler.h>
@@ -323,7 +325,7 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 		break;
 	}
 
-	rd->pmu_enabled = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_EN, p.features_0);
+	rd->pmu_enabled = true; // EXTRACT(RMM_FEATURE_REGISTER_0_PMU_EN, p.features_0);
 	rd->pmu_num_cnts = EXTRACT(RMM_FEATURE_REGISTER_0_PMU_NUM_CTRS, p.features_0);
 
 	realm_params_measure(rd, &p);
@@ -335,6 +337,11 @@ unsigned long smc_realm_create(unsigned long rd_addr,
 	for (i = 0U; i < p.rtt_num_start; i++) {
 		granule_unlock_transition(g_rtt_base + i, GRANULE_STATE_RTT);
 	}
+
+	// Reset GIC emulation state
+	clear_affinity(g_rd);
+	// Initialize perf counters
+	perf_reset();
 
 	return RMI_SUCCESS;
 }
@@ -398,6 +405,10 @@ unsigned long smc_realm_destroy(unsigned long rd_addr)
 	/* This implictly destroys the measurement */
 	granule_memzero(g_rd, SLOT_RD);
 	granule_unlock_transition(g_rd, GRANULE_STATE_DELEGATED);
+
+	/* Display perf counter and reset count */
+	perf_display();
+	perf_reset();
 
 	return RMI_SUCCESS;
 }

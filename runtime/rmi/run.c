@@ -3,8 +3,10 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include "arch_helpers.h"
 #include <arch.h>
 #include <debug.h>
+#include <cpuid.h>
 #include <esr.h>
 #include <gic.h>
 #include <granule.h>
@@ -223,6 +225,17 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 		goto out_unmap_buffers;
 	}
 
+	if (rec->core == REC_CORE_GUARD) {
+		NOTICE("[RMM] Binding rec on core %u\n", my_cpuid());
+		rec->core = my_cpuid();
+		reset_timer(); // Initialize timer on first REC entry
+		write_cnthp_ctl_el2(1); // Enable hypervisor timer
+	} else if (rec->core != my_cpuid()) {
+        NOTICE("[RMM] ERROR: rec registered on core %u, but scheduled on core %u\n", rec->core, my_cpuid());
+        ret = RMI_ERROR_REC;
+        goto out_unmap_buffers;
+    }
+
 	/* REC with pending PSCI command is not schedulable */
 	if (rec->psci_info.pending) {
 		ret = RMI_ERROR_REC;
@@ -260,6 +273,7 @@ unsigned long smc_rec_enter(unsigned long rec_addr,
 	reset_last_run_info(rec);
 
 	rec->sysregs.hcr_el2 = rec->common_sysregs.hcr_el2;
+	// Disable traps on WFI and WFE.
 	if ((rec_run.entry.flags & REC_ENTRY_FLAG_TRAP_WFI) != 0UL) {
 		rec->sysregs.hcr_el2 |= HCR_TWI;
 	}

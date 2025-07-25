@@ -392,8 +392,11 @@ uint64_t xlat_desc(uint64_t attr, uintptr_t addr_pa, unsigned int level)
 	 */
 	desc |= ((attr & MT_RW) != 0UL) ? LOWER_ATTRS(AP_RW) : LOWER_ATTRS(AP_RO);
 
+
 	if ((attr & MT_NG) != 0UL) {
+#ifndef NORMAL_WORLD_RMM
 		desc |= XLAT_GET_NG_HINT();
+#endif
 	}
 
 	/*

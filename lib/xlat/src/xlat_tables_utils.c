@@ -393,6 +393,12 @@ int xlat_unmap_memory_page(struct xlat_llt_info * const table,
 	/* Invalidate any cached copy of this mapping in the TLBs. */
 	xlat_arch_tlbi_va(va);
 
+#ifdef QEMU
+	// TODO: This invalidates all the TLB mapping, find a way to properly
+	// invalidate VAs on QEMU!!!
+	tlbialle2();
+#endif
+
 	/* Ensure completion of the invalidation. */
 	xlat_arch_tlbi_va_sync();
 

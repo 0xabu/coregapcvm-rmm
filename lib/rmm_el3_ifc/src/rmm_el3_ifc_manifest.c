@@ -91,6 +91,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	 * Validate the Boot Manifest Version
 	 */
 	if (local_core_manifest.version < RMM_EL3_IFC_MAKE_VERSION(0, 2)) {
+		INFO("[RMM] Unsupported local core manifest version: 0x%x\n", local_core_manifest.version);
 		return E_RMM_BOOT_MANIFEST_VERSION_NOT_SUPPORTED;
 	}
 
@@ -105,15 +106,20 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 	/* Validate number of banks and pointer to banks[] */
 	if ((num_banks == 0UL) || (num_banks > max_num_banks) ||
 	    (bank_ptr == NULL)) {
+		INFO("[RMM] Invalid banks: %lu banks - ptr: 0x%lx\n", num_banks, (unsigned long)bank_ptr);
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
 	/* Calculate checksum of ns_dram_info structure */
 	checksum = num_banks + (uint64_t)bank_ptr + plat_dram->checksum;
 
+	INFO("[RMM] Num DRAM banks: %lu\n", num_banks);
+
 	for (unsigned long i = 0UL; i < num_banks; i++) {
 		uint64_t size = bank_ptr->size;
 		uintptr_t start = bank_ptr->base;
+
+		INFO("[RMM] Bank 0x%lx-0x%lx\n", start, start + size);
 
 		/* Base address, size of bank and alignments */
 		if ((start == 0UL) || (size == 0UL) ||
@@ -126,6 +132,7 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 		 * passed in ascending order without overlapping.
 		 */
 		if (start < end) {
+			INFO("[RMM] DRAM banks not sorted\n");
 			return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 		}
 
@@ -145,12 +152,13 @@ int rmm_el3_ifc_get_dram_data_validated_pa(unsigned long max_num_banks,
 
 	/* Checksum must be 0 */
 	if (checksum != 0UL) {
+		INFO("[RMM] Invalid checksum: 0x%lx\n", checksum);
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}
 
 	/* Check for the maximum number of granules supported */
 	if (num_granules > RMM_MAX_GRANULES) {
-		ERROR("Number of granules %lu exceeds maximum of %u\n",
+		ERROR("Number of granules %lu exceeds maximum of %lu\n",
 			num_granules, RMM_MAX_GRANULES);
 		return E_RMM_BOOT_MANIFEST_DATA_ERROR;
 	}

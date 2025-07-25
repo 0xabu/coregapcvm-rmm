@@ -1,0 +1,19 @@
+name: "tf-rmm"
+
+description
+"Implementation of the Realm Management Monitor by Trusted Firmware"
+
+
+third_party {
+  url {
+    type: HOMEPAGE
+    value: "https://www.trustedfirmware.org/projects/tf-rmm/"
+  }
+  url {
+    type: GIT
+    value: "https://git.trustedfirmware.org/TF-RMM/tf-rmm.git"
+  }
+
+  license_type: BSD
+  local_modifications: "Prototype of core-gapped confidential VMs"
+}

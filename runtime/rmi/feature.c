@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <debug.h>
 #include <arch_features.h>
 #include <assert.h>
 #include <feature.h>
@@ -19,6 +20,7 @@ static unsigned long get_feature_register_0(void)
 	/* Set S2SZ field */
 	unsigned long s2sz = arch_feat_get_pa_width();
 	unsigned long feat_reg0 = INPLACE(RMM_FEATURE_REGISTER_0_S2SZ, s2sz);
+	NOTICE("[RMM] s2sz: %lx\n", s2sz);
 
 	/* Set LPA2 field */
 	if (is_feat_lpa2_4k_present()) {
@@ -31,8 +33,9 @@ static unsigned long get_feature_register_0(void)
 	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_HASH_SHA_512,
 				RMI_SUPPORTED);
 
+	// NOTE: on QEMU this raise an error
 	/* RMM supports PMUv3p7+ */
-	assert(read_pmu_version() >= ID_AA64DFR0_EL1_PMUv3p7);
+	/* assert(read_pmu_version() >= ID_AA64DFR0_EL1_PMUv3p7); */
 
 	/* Set support for PMUv3 */
 	feat_reg0 |= INPLACE(RMM_FEATURE_REGISTER_0_PMU_EN,

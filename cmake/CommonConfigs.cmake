@@ -74,7 +74,7 @@ if (RMM_MAX_GRANULES EQUAL 0x0)
 endif()
 
 target_compile_definitions(rmm-common
-    INTERFACE "RMM_MAX_GRANULES=U(${RMM_MAX_GRANULES})")
+	INTERFACE "RMM_MAX_GRANULES=UL(${RMM_MAX_GRANULES})")
 
 if(RMM_FPU_USE_AT_REL2)
     target_compile_definitions(rmm-common

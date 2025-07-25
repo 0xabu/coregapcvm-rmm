@@ -24,6 +24,9 @@
 	mov	x21, x1
 	mov	x22, x2
 	mov	x23, x3
+#ifdef NORMAL_WORLD_RMM
+	mov x24, x4
+#endif
 
 	mov_imm	x1, SCTLR_EL2_INIT
 	msr	sctlr_el2, x1
@@ -138,6 +141,11 @@ smc_ret:
 	mov_imm	x0, SMC_RMM_BOOT_COMPLETE
 	mov_imm	x1, E_RMM_BOOT_SUCCESS
 	smc	#0
+
+#ifdef NORMAL_WORLD_RMM
+	mov x0, x24
+	bl smc_core_dedicate
+#endif
 
 	/* Jump to the SMC handler post-init */
 	b	rmm_handler

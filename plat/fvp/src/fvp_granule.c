@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include <debug.h>
 #include <assert.h>
 #include <fvp_dram.h>
 #include <fvp_private.h>
@@ -21,29 +22,29 @@ unsigned long plat_granule_addr_to_idx(unsigned long addr)
 		return UINT64_MAX;
 	}
 
-	if ((addr >= fvp_dram.fvp_bank[0].start_addr) &&
-	    (addr <= fvp_dram.fvp_bank[0].end_addr)) {
-		return (addr - fvp_dram.fvp_bank[0].start_addr) / GRANULE_SIZE;
+	for (int i = 0; i < fvp_dram.num_banks; i++) {
+		if ((addr >= fvp_dram.fvp_bank[i].start_addr) &&
+			(addr <= fvp_dram.fvp_bank[i].end_addr)) {
+			return ((addr - fvp_dram.fvp_bank[i].start_addr) /
+				GRANULE_SIZE) + fvp_dram.idx_bank[i];
+		}
 	}
 
-	if ((fvp_dram.fvp_bank[1].start_addr != 0UL) &&
-	    (addr >= fvp_dram.fvp_bank[1].start_addr) &&
-	    (addr <= fvp_dram.fvp_bank[1].end_addr)) {
-		return ((addr - fvp_dram.fvp_bank[1].start_addr) /
-			GRANULE_SIZE) + fvp_dram.idx_bank_1;
-	}
+	INFO("[RMM] ERROR: could not convert address to granule idx: 0x%lx\n", addr);
 
 	return UINT64_MAX;
 }
 
 unsigned long plat_granule_idx_to_addr(unsigned long idx)
 {
+	unsigned long i = 0;
+
 	assert(idx < fvp_dram.num_granules);
 
-	if (idx < fvp_dram.idx_bank_1) {
-		return fvp_dram.fvp_bank[0].start_addr + (idx * GRANULE_SIZE);
+	while (i + 1 < fvp_dram.num_banks && idx < fvp_dram.idx_bank[i+1]) {
+		i += 1;
 	}
 
-	return fvp_dram.fvp_bank[1].start_addr +
-			((idx - fvp_dram.idx_bank_1) * GRANULE_SIZE);
+	return fvp_dram.fvp_bank[i].start_addr +
+			((idx - fvp_dram.idx_bank[i]) * GRANULE_SIZE);
 }

@@ -29,7 +29,7 @@ ENTRY(el2_vectors):
 	ventry_unused	exc_serror_sp0
 
 	ventry		el2_sync_cel
-	ventry_unused	exc_irq_spx
+	ventry		el2_irq_cel
 	ventry_unused	exc_fiq_spx
 	ventry_unused	exc_serror_spx
 
@@ -105,3 +105,35 @@ el2_sync_cel:
 	sb
 
 ENDPROC(el2_sync_cel)
+
+el2_irq_cel:
+	stp	x0, x1, [sp, #-16]!
+	stp	x2, x3, [sp, #-16]!
+	stp	x4, x5, [sp, #-16]!
+	stp	x6, x7, [sp, #-16]!
+	stp	x8, x9, [sp, #-16]!
+	stp	x10, x11, [sp, #-16]!
+	stp	x12, x13, [sp, #-16]!
+	stp	x14, x15, [sp, #-16]!
+	stp	x16, x17, [sp, #-16]!
+	stp	x18, xzr, [sp, #-16]!
+	stp	x29, lr, [sp, #-16]!
+
+	bl	handle_rmm_irq
+
+	ldp	x29, lr, [sp], #16
+	ldp	x18, xzr, [sp], #16
+	ldp	x16, x17, [sp], #16
+	ldp	x14, x15, [sp], #16
+	ldp	x12, x13, [sp], #16
+	ldp	x10, x11, [sp], #16
+	ldp	x8, x9, [sp], #16
+	ldp	x6, x7, [sp], #16
+	ldp	x4, x5, [sp], #16
+	ldp	x2, x3, [sp], #16
+	ldp	x0, x1, [sp], #16
+
+	eret
+	sb
+
+ENDPROC(el2_irq_cel)

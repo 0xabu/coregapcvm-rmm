@@ -38,6 +38,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 	uintptr_t end_pa, mm_end_pa;
 	uintptr_t end_va, previous_end_va;
 
+	INFO("[RMM] Validate mmap regions\n");
+	INFO("[RMM] Number of regions: %d\n", mm_regions);
+	INFO("[RMM] VA size: 0x%lx\n", va_size);
+
 	if (mm == NULL) {
 		return -EINVAL;
 	}
@@ -53,6 +57,10 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		base_va = mm[i].base_va;
 		end_pa = base_pa + size - 1UL;
 		end_va = base_va + size - 1UL;
+
+		INFO("[RMM] Region:\n");
+		INFO("[RMM]   PA: 0x%lx-0x%lx\n", base_pa, end_pa);
+		INFO("[RMM]   VA: 0x%lx-0x%lx\n", base_va, end_va);
 
 		if (region == VA_LOW_REGION) {
 			if ((base_va & HIGH_REGION_MASK) ||
@@ -96,6 +104,7 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 
 		/* Check for overflows */
 		if ((base_pa > end_pa) || (base_va > end_va)) {
+			INFO("[RMM] Range overflow\n");
 			return -ERANGE;
 		}
 
@@ -105,10 +114,12 @@ static int validate_mmap_regions(struct xlat_mmap_region *mm,
 		 * max_va_size to ensure we are within the allowed range.
 		 */
 		if (end_va > va_size) {
+			INFO("[RMM] Bad `end_va`\n");
 			return -ERANGE;
 		}
 
 		if (end_pa > xlat_arch_get_max_supported_pa()) {
+			INFO("[RMM] Unsupported PA: `end_pa` = %lx\n", end_pa);
 			return -ERANGE;
 		}
 

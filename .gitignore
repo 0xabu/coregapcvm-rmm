@@ -10,3 +10,7 @@ out
 *~
 *.patch
 *.swp
+
+# clangd
+.cache
+compile_commands.json

@@ -8,6 +8,7 @@
 #include <attestation.h>
 #include <buffer.h>
 #include <cpuid.h>
+#include <debug.h>
 #include <gic.h>
 #include <granule.h>
 #include <mbedtls/memory_buffer_alloc.h>
@@ -21,7 +22,16 @@
 #include <smc.h>
 #include <spinlock.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
+
+// Import memory mapping functions
+#include <xlat_tables.h>
+#include <buffer.h>
+
+// Some helpers
+#define U64_PTR(ptr) ((uint64_t volatile *)(ptr))
+#define U32_PTR(ptr) ((uint32_t volatile *)(ptr))
 
 /*
  * Allocate a dummy rec_params for copying relevant parameters for measurement
@@ -264,9 +274,13 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 
 	rec->g_rec = g_rec;
 	rec->rec_idx = rec_idx;
+	rec->core = REC_CORE_GUARD;
 
 	init_rec_regs(rec, &rec_params, rd);
 	gic_cpu_state_init(&rec->sysregs.gicstate);
+	NOTICE("[RMM] Rec mpidr: 0x%lx\n", rec_params.mpidr);
+	register_affinity(g_rd, (rec_params.mpidr & 0x00ffffff) | ((rec_params.mpidr >> 8) & 0xff000000));
+	gic_clear_state(&rec->sysregs.gicstate);
 
 	/* Copy addresses of auxiliary granules */
 	(void)memcpy(rec->g_aux, rec_aux_granules,
@@ -286,6 +300,8 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 
 	rec_params_measure(rd, &rec_params);
 
+	INFO("[RMM] REC PMU enabled: %d\n", rd->pmu_enabled);
+
 	/*
 	 * RD has a lock-free access from RMI_REC_DESTROY, hence increment
 	 * refcount atomically. Also, since the granule is only used for
@@ -303,6 +319,90 @@ unsigned long smc_rec_create(unsigned long rec_addr,
 	set_rd_rec_count(rd, rec_idx + 1U);
 
 	ret = RMI_SUCCESS;
+
+    /* WARNING: this code has nothing to do there, it is purely for experimental purpose */
+    if (false) {
+        uint64_t gicd_base_address = 0x2f000000;
+        uint64_t gicr_base_address = 0x2f100000 + 0x20000 * my_cpuid();
+        uint64_t gicr_sgi_base_address  = gicr_base_address + 0x10000;
+        uint8_t *gicd_va;
+        uint8_t *gicr_va;
+        uint8_t *gicr_sgi_va;
+        uint64_t int_id = 7; // must be between 0 and 15 included
+        uint32_t enabled_int;
+		uint64_t hcr_el2;
+
+        NOTICE("## GICD address 0x%lx\n", gicd_base_address);
+        NOTICE("## GICR address 0x%lx\n", gicr_base_address);
+        NOTICE("## SGI address  0x%lx\n", gicr_sgi_base_address);
+
+        // We first need to map the GICD and GICR
+        NOTICE("## Mapping GICD\n");
+        gicd_va = buffer_map_internal(SLOT_REC2, (unsigned long)gicd_base_address); // SLOT_REC2 is free in this function
+        if (gicd_va == NULL) {
+            NOTICE("## Failed to map GICD\n");
+        }
+
+        enabled_int = *(gicd_va + 0x0100);
+
+        /* *U32_PTR(gicd_va + 0x0004) = 0xffff; // Register is RO, should report an error in STATUSR */
+        NOTICE("## GICD_TYPER      0x%08x\n", *U32_PTR(gicd_va + 0x0004));
+        NOTICE("## GICD_STATUSR    0x%08x\n", *U32_PTR(gicd_va + 0x0010));
+        NOTICE("## GICD_ISENABLER0 0x%08x\n", enabled_int);
+        NOTICE("## Configuring GICD\n");
+
+        *U32_PTR(gicd_va + 0x0100) = enabled_int | (1 << int_id);
+        NOTICE("## GICD_ISENABLER0 0x%08x\n", *(gicd_va + 0x0100));
+
+        // Cleanup, the GICD can not be accessed after this point
+        buffer_unmap_internal((void *)gicd_va);
+
+        NOTICE("## Mapping GICR\n");
+        gicr_va = buffer_map_internal(SLOT_REC2, (unsigned long)gicr_base_address);
+        if (gicr_va == NULL) {
+            NOTICE("## Failed to map GICR\n");
+        }
+
+        uint64_t gicr_typer = *U64_PTR(gicr_va + 0x0008);
+        NOTICE("## GICR_TYPER       0x%08lx\n", gicr_typer);
+        NOTICE("## GICR_TYPER.cpuid 0x%08lx\n", (gicr_typer >> 8) & 0xffffffff);
+        NOTICE("## GICR_STATUSR     0x%08x\n", *U32_PTR(gicr_va + 0x0010));
+
+        // Cleanup, the GICR can not be accessed after this point
+        buffer_unmap_internal((void *)gicr_va);
+
+        NOTICE("## Mapping the GICR SGI\n");
+        gicr_sgi_va = buffer_map_internal(SLOT_REC2, (unsigned long)gicr_sgi_base_address);
+        if (gicr_sgi_va == NULL) {
+            NOTICE("## Failed to map GICR SGI\n");
+        }
+
+        enabled_int = *U32_PTR(gicr_sgi_va + 0x0100);
+
+        NOTICE("## GICR_ISENABLER0 0x%08x\n", enabled_int);
+        NOTICE("## Configuring GICR SGI\n");
+
+        *U32_PTR(gicr_sgi_va + 0x0100) = enabled_int | (1 << int_id);
+        NOTICE("## GICR_ISENABLER0 0x%08x\n", *U32_PTR(gicr_sgi_va + 0x0100));
+
+        buffer_unmap_internal((void *)gicr_sgi_va);
+
+		// Print some virtualization configuration
+		asm volatile("mrs %0, hcr_el2" : "=r"(hcr_el2));
+		NOTICE("## HCR_EL2: 0x%016lx\n", hcr_el2);
+
+        /* uint64_t icc_sgi = (uint64_t)(int_id << 24) | (1ULL << 40); */
+        /* NOTICE("## Sending SGI\n"); */
+        /* NOTICE("## ICC_SGI1R_EL1 0x%08lx\n", icc_sgi); */
+        /* asm( */
+        /*     "msr icc_sgi1r_el1, %0;" */
+        /*     : */
+        /*     :"r"(icc_sgi) */
+        /* ); */
+
+        // Force failure
+        /* ret = RMI_ERROR_INPUT; */
+    }
 
 out_unmap:
 	buffer_unmap(rd);

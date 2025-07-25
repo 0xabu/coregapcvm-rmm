@@ -19,6 +19,26 @@ arm_config_option_override(NAME VIRT_ADDR_SPACE_WIDTH DEFAULT 38)
 #
 arm_config_option_override(NAME RMM_MAX_SIZE DEFAULT 0x01800000)
 
+if (NORMAL_WORLD_RMM)
+	arm_config_option_override(NAME GICD_BASE_ADDR DEFAULT 0x8000000)
+	add_definitions("-DGICD_BASE_ADDR=0x8000000")
+	arm_config_option_override(NAME GICR_BASE_ADDR DEFAULT 0x80a0000)
+	add_definitions("-DGICR_BASE_ADDR=0x80a0000")
+else()
+	arm_config_option_override(NAME GICD_BASE_ADDR DEFAULT 0x2f000000)
+	add_definitions("-DGICD_BASE_ADDR=0x2f000000")
+	arm_config_option_override(NAME GICR_BASE_ADDR DEFAULT 0x2f100000)
+	add_definitions("-DGICR_BASE_ADDR=0x2f100000")
+endif()
+
+if (INTERRUPT_DELEGATION)
+	add_definitions("-DINTERRUPT_DELEGATION=1")
+endif()
+
+if (QEMU)
+	add_definitions("-DQEMU=1")
+endif()
+
 #
 # UART Base address. This must be dynamically discovered in future.
 # Use UART3 on the FVP for RMM.

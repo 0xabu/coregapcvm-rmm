@@ -28,6 +28,7 @@ static bool initialized;
  */
 __dead2 void rmm_el3_ifc_report_fail_to_el3(int ec)
 {
+	ERROR("[RMM] BOOT FAILURE %d\n", ec);
 	(void)monitor_call(SMC_RMM_BOOT_COMPLETE, (unsigned long)ec,
 			   0UL, 0UL, 0UL, 0UL, 0UL);
 	/* EL3 should never return back here */

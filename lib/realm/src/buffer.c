@@ -184,19 +184,19 @@ void assert_cpu_slots_empty(void)
 {
 	unsigned int i;
 
-	for (i = 0; i < NR_CPU_SLOTS; i++) {
+	for (i = SLOT_NS_CHANNEL + 1; i < NR_CPU_SLOTS; i++) {
 		assert(slot_to_descriptor(i) == TRANSIENT_DESC);
 	}
 }
 
 static inline bool is_ns_slot(enum buffer_slot slot)
 {
-	return slot == SLOT_NS;
+	return slot <= SLOT_NS;
 }
 
 static inline bool is_realm_slot(enum buffer_slot slot)
 {
-	return (slot != SLOT_NS) && (slot < NR_CPU_SLOTS);
+	return (!is_ns_slot(slot)) && (slot < NR_CPU_SLOTS);
 }
 
 static void *ns_granule_map(enum buffer_slot slot, struct granule *granule)
@@ -327,7 +327,24 @@ void *buffer_map_internal(enum buffer_slot slot, unsigned long addr)
 
 	assert(GRANULE_ALIGNED(addr));
 
-	attr |= (slot == SLOT_NS ? MT_NS : MT_REALM);
+	attr |= (is_ns_slot(slot) ? MT_NS : MT_REALM);
+
+	if (xlat_map_memory_page_with_attrs(entry, va,
+					    (uintptr_t)addr, attr) != 0) {
+		/* Error mapping the buffer */
+		return NULL;
+	}
+
+	return (void *)va;
+}
+
+void *buffer_map_device_internal(enum buffer_slot slot, unsigned long addr)
+{
+	uint64_t attr = MT_RW | MT_DEVICE | MT_NS;
+	uintptr_t va = slot_to_va(slot);
+	struct xlat_llt_info *entry = get_cached_llt_info();
+
+	assert(GRANULE_ALIGNED(addr));
 
 	if (xlat_map_memory_page_with_attrs(entry, va,
 					    (uintptr_t)addr, attr) != 0) {

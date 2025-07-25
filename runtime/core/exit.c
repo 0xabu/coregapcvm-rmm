@@ -4,6 +4,7 @@
  * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
  */
 
+#include "debug.h"
 #include <arch.h>
 #include <arch_helpers.h>
 #include <attestation_token.h>
@@ -14,6 +15,7 @@
 #include <granule.h>
 #include <inject_exp.h>
 #include <memory_alloc.h>
+#include <perf.h>
 #include <psci.h>
 #include <realm.h>
 #include <realm_attest.h>
@@ -31,6 +33,8 @@
 #include <status.h>
 #include <sysreg_traps.h>
 #include <table.h>
+#include <timers.h>
+#include <perf.h>
 
 void save_fpu_state(struct fpu_state *fpu);
 void restore_fpu_state(struct fpu_state *fpu);
@@ -308,6 +312,9 @@ static bool handle_instruction_abort(struct rec *rec, struct rmi_rec_exit *rec_e
 		ERROR("    FSC: %12s0x%02lx\n", " ", fsc);
 		ERROR("    FAR: %16lx\n", far);
 		ERROR("  HPFAR: %16lx\n", hpfar);
+		ERROR("    ESR: %16lx\n", esr);
+		rec_exit->hpfar = hpfar;
+		rec_exit->esr = esr & ESR_NONEMULATED_ABORT_MASK;
 		return false;
 	}
 
@@ -341,7 +348,7 @@ handle_simd_exception(simd_t exp_type, struct rec *rec)
 	 * Allow the REC to use SIMD. Save NS SIMD state and restore REC SIMD
 	 * state from memory to registers.
 	 */
-	simd_save_ns_state();
+	/* simd_save_ns_state(); */
 	rec_simd_enable_restore(rec);
 
 	/*
@@ -572,6 +579,12 @@ static bool handle_realm_rsi(struct rec *rec, struct rmi_rec_exit *rec_exit)
 		}
 		break;
 	}
+	case SMC_RSI_STATS: {
+		perf_get(&rec->regs[0]);
+		perf_display();
+		perf_reset();
+		break;
+	}
 	default:
 		rec->regs[0] = SMC_UNKNOWN;
 		break;
@@ -597,13 +610,16 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 
 	switch (esr & MASK(ESR_EL2_EC)) {
 	case ESR_EL2_EC_WFX:
+		perf_record_and_time_event(PERF_SYNC_WFX);
 		rec_exit->esr = esr & (MASK(ESR_EL2_EC) | ESR_EL2_WFx_TI_BIT);
 		advance_pc();
 		return false;
 	case ESR_EL2_EC_HVC:
+		perf_record_and_time_event(PERF_SYNC_HVC);
 		realm_inject_undef_abort();
 		return true;
 	case ESR_EL2_EC_SMC:
+		perf_record_and_time_event(PERF_SYNC_SMC);
 		if (!handle_realm_rsi(rec, rec_exit)) {
 			return false;
 		}
@@ -617,17 +633,22 @@ static bool handle_exception_sync(struct rec *rec, struct rmi_rec_exit *rec_exit
 		advance_pc();
 		return true;
 	case ESR_EL2_EC_SYSREG: {
+		perf_record_and_time_event(PERF_SYNC_SYSREG);
 		bool ret = handle_sysreg_access_trap(rec, rec_exit, esr);
 		advance_pc();
 		return ret;
 	}
 	case ESR_EL2_EC_INST_ABORT:
+		perf_record_and_time_event(PERF_SYNC_INST_ABORT);
 		return handle_instruction_abort(rec, rec_exit, esr);
 	case ESR_EL2_EC_DATA_ABORT:
+		perf_record_and_time_event(PERF_SYNC_DATA_ABORT);
 		return handle_data_abort(rec, rec_exit, esr);
 	case ESR_EL2_EC_FPU:
+		perf_record_and_time_event(PERF_SYNC_EC_FPU);
 		return handle_simd_exception(SIMD_FPU, rec);
 	case ESR_EL2_EC_SVE:
+		perf_record_and_time_event(PERF_SYNC_SVE);
 		return handle_simd_exception(SIMD_SVE, rec);
 	default:
 		/*
@@ -711,17 +732,23 @@ static bool handle_exception_irq_lel(struct rec *rec, struct rmi_rec_exit *rec_e
 	(void)rec;
 
 	rec_exit->exit_reason = RMI_EXIT_IRQ;
+	/* NOTICE("## EXIT IRQ\n"); */
 
+	return handle_irqs(&rec->sysregs.gicstate);
+
+#if 0
 	/*
 	 * With GIC all virtual interrupt programming
 	 * must go via the NS hypervisor.
 	 */
 	return false;
+#endif
 }
 
 /* Returns 'true' when returning to Realm (S) and false when to NS */
 bool handle_realm_exit(struct rec *rec, struct rmi_rec_exit *rec_exit, int exception)
 {
+	perf_time_exit();
 	switch (exception) {
 	case ARM_EXCEPTION_SYNC_LEL: {
 		bool ret;

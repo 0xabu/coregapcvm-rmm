@@ -19,6 +19,8 @@
 #include <smc-rmi.h>
 #include <utils_def.h>
 
+#define REC_CORE_GUARD 0xffffffff
+
 struct granule;
 
 /*
@@ -199,6 +201,10 @@ struct rec {
 
 	/* True if host call is pending */
 	bool host_call;
+
+    /* The core to which the REC is bound */
+    unsigned int core;
+	unsigned long htimer;
 };
 COMPILER_ASSERT(sizeof(struct rec) <= GRANULE_SIZE);
 

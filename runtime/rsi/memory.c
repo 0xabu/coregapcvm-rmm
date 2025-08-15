@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ * SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
  */
 
 #include <realm.h>

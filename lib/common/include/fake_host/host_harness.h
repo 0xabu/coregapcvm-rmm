@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: BSD-3-Clause
- * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ * SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
  */
 #ifndef HOST_HARNESS_H
 #define HOST_HARNESS_H

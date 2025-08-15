@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: BSD-3-Clause
-# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+# SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
 #
 # Configuration file for the Sphinx documentation builder.
 #

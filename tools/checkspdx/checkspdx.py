@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: BSD-3-Clause
-# SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+# SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
 #
 
 from argparse import ArgumentParser

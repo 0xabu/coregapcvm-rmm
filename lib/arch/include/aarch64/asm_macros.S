@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: BSD-3-Clause
- * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ * SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
  */
 #ifndef ASM_MACROS_S
 #define ASM_MACROS_S

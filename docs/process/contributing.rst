@@ -1,5 +1,5 @@
 .. SPDX-License-Identifier: BSD-3-Clause
-.. SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+.. SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
 
 *******************
 Contributor's Guide
@@ -145,7 +145,7 @@ the form :
 .. code::
 
    SPDX-License-Identifier: BSD-3-Clause
-   SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+   SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
 
 Patches that contain changes to imported Third Party IP files should retain
 their original copyright and license notices. If changes are made to the

@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: ISC
  * SPDX-FileCopyrightText: Copyright Todd C. Miller <Todd.Miller@courtesan.com>
- * SPDX-FileCopyrightText: Copyright TF-RMM Contributors.
+ * SPDX-FileCopyrightText: Copyright 2025 TF-RMM Contributors.
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
